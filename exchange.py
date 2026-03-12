@@ -54,7 +54,7 @@ states = [psi_prev.copy(), psi_curr.copy()]
 for n in range(1, n_steps):
     psi_next = psi_prev - 2j * dt * (H @ psi_curr)
 
-    # normalization 
+    # normalization (H is hermitian but its discretization might be not!)
     psi_next /= np.linalg.norm(psi_next)
 
     psi_prev = psi_curr
