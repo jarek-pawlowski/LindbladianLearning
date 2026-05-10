@@ -545,9 +545,9 @@ $$
 
 Properties:
 
-* invariant to global phase: $U \equiv e^{i\phi} U$,
+* invariant to global phase: $U \equiv e^{i\phi} U$ (same for $V$),
 * bounded: $d(U, V) \in [0, 1]$,
-* equals **0** when matrices are identical up to phase,
+* equals 0 when matrices are identical up to phase,
 * commonly used in quantum machine learning.
 
 This choice is closely related to the Hilbert-Schmidt inner product: $\langle U,V\rangle_{HS}=\mathrm{Tr}(U^\dagger V)$.
