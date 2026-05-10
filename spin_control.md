@@ -11,7 +11,7 @@ $$
 with basis
 
 $$
-{|{\uparrow\uparrow}\rangle,\ |{\uparrow\downarrow}\rangle,\ |{\downarrow\uparrow}\rangle,\ |{\downarrow\downarrow}\rangle}.
+|{\uparrow\uparrow}\rangle,\ |{\uparrow\downarrow}\rangle,\ |{\downarrow\uparrow}\rangle,\ |{\downarrow\downarrow}\rangle.
 $$
 
 Let $\sigma_\alpha^{(1)} = \sigma_\alpha \otimes I$ and $\sigma_\alpha^{(2)} = I \otimes \sigma_\alpha$, for $\alpha=x,y,z$.
@@ -533,3 +533,22 @@ This is compact, realistic, and already rich enough to study:
 * SOC-assisted all-electric control
 * Lindblad-limited fidelity
 
+# 11. Phase-invariant distance between complex (unitary) matrices
+
+In quantum computing two matrices that differ only by a **global phase** $U \sim e^{i\phi} U$ should be treated as equivalent.
+
+We define a **phase-invariant distance** between two unitary matrices $U$ and $V$ ($\in\mathbb{C}^{n\times n}$) as:
+
+$$
+d(U, V) = \sqrt{1 - \frac{1}{n}\left|\mathrm{Tr}(U^\dagger V)\right|}
+$$
+
+Properties:
+
+* invariant to global phase: $U \equiv e^{i\phi} U$,
+* bounded: $d(U, V) \in [0, 1]$,
+* equals **0** when matrices are identical up to phase,
+* commonly used in quantum machine learning.
+
+This choice is closely related to the Hilbert-Schmidt inner product: $\langle U,V\rangle_{HS}=\mathrm{Tr}(U^\dagger V)$.
+For two-qubit gates $n=2^2=4$.
