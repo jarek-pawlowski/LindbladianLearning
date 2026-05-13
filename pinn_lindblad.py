@@ -569,7 +569,7 @@ class Training:
             rho_pred = self.nn_solver.predictor(self.nn_solver.data_points)
             rho_data = self.nn_solver.data_values
             physicsL = self.nn_solver.f_nn(self.nn_solver.collocation_points)
-            dataL = self.nn_solver.Rho_diff(rho_pred, rho_data[:,])
+            dataL = self.nn_solver.Rho_diff(rho_pred, rho_data[:,1,1])
             loss = dataL*1.  #self.nn_solver.collocation_points.shape[0]
             if self.physics_loss:
                 loss += physicsL*(self.weight_physics)**2
@@ -626,14 +626,14 @@ print(rho_nn.shape)
 # Plot
 fig, ax = plt.subplots(figsize=(9, 5))
 
-ax.plot(times_3*Th, pop_00, color='C0', label=r'$|00\rangle$')
-ax.plot(times_3*Th, rho_nn[:,0,0], '--', color='C0', label=r'PINN: $|00\rangle$')
+# ax.plot(times_3*Th, pop_00, color='C0', label=r'$|00\rangle$')
+# ax.plot(times_3*Th, rho_nn[:,0,0], '--', color='C0', label=r'PINN: $|00\rangle$')
 ax.plot(times_3*Th, pop_01, color='C1', label=r'$|01\rangle$')
-ax.plot(times_3*Th, rho_nn[:,1,1], '--', color='C1', label=r'PINN: $|01\rangle$')
-ax.plot(times_3*Th, pop_10, color='C2', label=r'$|10\rangle$')
-ax.plot(times_3*Th, rho_nn[:,2,2], '--', color='C2', label=r'PINN: $|10\rangle$')
-ax.plot(times_3*Th, pop_11, color='C3', label=r'$|11\rangle$')
-ax.plot(times_3*Th, rho_nn[:,3,3], '--', color='C3', label=r'PINN: $|11\rangle$')
+ax.plot(times_3*Th, rho_nn, '--', color='C1', label=r'PINN: $|01\rangle$')
+# ax.plot(times_3*Th, pop_10, color='C2', label=r'$|10\rangle$')
+# ax.plot(times_3*Th, rho_nn[:,2,2], '--', color='C2', label=r'PINN: $|10\rangle$')
+# ax.plot(times_3*Th, pop_11, color='C3', label=r'$|11\rangle$')
+# ax.plot(times_3*Th, rho_nn[:,3,3], '--', color='C3', label=r'PINN: $|11\rangle$')
 ax.scatter(data_times*Th, np.ones_like(data_times)*.02, marker='o', color='black', label='data points')
 ax.scatter(collocation_points_times*Th, np.ones_like(collocation_points_times)*-.02, marker='x', color='magenta', label='collocation points')
 ax.set_xlabel('Time (ps)')
