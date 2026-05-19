@@ -6,6 +6,10 @@ import torch.nn.functional as F
 
 import matplotlib.pyplot as plt
 
+# Atomic units
+Eh = 27211.  # Eh = 27211 meV
+Th = 2.42e-5 # Th = 2.42 x 10^-5 ps
+
 # Dwie funkcje pożyczone od Ziemka
 
 def plot_signals(signals, t_axis = None, labels=None, points=None, pointlabels=None):
@@ -49,8 +53,8 @@ def FixRho(rho):
 
     return rho_fixed.squeeze(0) if squeeze else rho_fixed
 
-"""LINDBLAD SOLVER FOR ARBITRARY NUMBER OF QUBITS"""
 
+"""LINDBLAD SOLVER FOR ARBITRARY NUMBER OF QUBITS"""
 class Lindblad_solver:
     """
     Solves the Lindblad master equation for the density matrix ρ:
@@ -74,17 +78,14 @@ class Lindblad_solver:
         self.LdagL  = [L.conj().mT @ L for L in self.L_ops]
 
     def lindblad_rhs(self, rho):
-      H = self.H.to(device=rho.device, dtype=rho.dtype)
-      drho = -1j * (H @ rho - rho @ H)
+        H = self.H.to(device=rho.device, dtype=rho.dtype)
+        drho = -1j * (H @ rho - rho @ H)
 
-      for gamma, Lk, LdLk in zip(self.gammas, self.L_ops, self.LdagL):
-          Lk   = Lk.to(device=rho.device, dtype=rho.dtype)
-          LdLk = LdLk.to(device=rho.device, dtype=rho.dtype)
-          drho += gamma * (
-              Lk @ rho @ Lk.conj().mT
-              - 0.5 * (LdLk @ rho + rho @ LdLk)
-          )
-      return drho
+        for gamma, Lk, LdLk in zip(self.gammas, self.L_ops, self.LdagL):
+            Lk = Lk.to(device=rho.device, dtype=rho.dtype)
+            LdLk = LdLk.to(device=rho.device, dtype=rho.dtype)
+            drho += gamma * (Lk @ rho @ Lk.conj().mT - 0.5 * (LdLk @ rho + rho @ LdLk))
+        return drho
 
     def _renormalize(self, rho):
         """Enforce Tr(ρ) = 1 after each step to suppress floating-point drift."""
@@ -124,6 +125,7 @@ class Lindblad_solver:
             rho = self.step(rho)
             rhos.append(rho.clone())
             times.append((i + 1) * dt)
+            #print(np.amin(np.linalg.eigvals(rho.cpu().numpy())))
 
         return [np.array(times), np.array(rhos)]
 
@@ -131,102 +133,14 @@ class Lindblad_solver:
         """Extract diagonal populations from a trajectory array."""
         return np.real(np.einsum('tii->ti', rhos))   # shape (T, N)
 
+
 """NUMERICAL SOLUTIONS"""
-'''
-# 1 qubit
-dt = 1
-H = np.array([[0, 0],
-              [0, 0]], dtype=complex)
-
-L1 = np.array([[0, 1],
-               [0, 0]], dtype=complex)
-
-L2 = np.array([[1,  0],
-               [0, -1]], dtype=complex)
-
-L = [L1, L2]
-gammas = [0.01, 0.01]
-
-psi0 = np.array([1, 1], dtype=complex)
-psi0 /= np.linalg.norm(psi0)
-
-psi0 = torch.tensor(psi0, dtype=torch.complex64)
-
-rho0 = torch.outer(psi0, psi0.conj()).unsqueeze(0)
-
-solver = Lindblad_solver(H, L, gammas, dt)
-[times_1, rhos_1] = solver.run_simulation(rho0, n_steps=200)
-
-states = rhos_1[:, 0, :, :]
-plot_signals([np.abs(states[:, 0, 0]), np.abs(states[:, 1, 1]), np.abs(states[:, 0, 1])],
-                  labels = ['00', '11', '01'],
-                  t_axis = times_1)
-
-# 2 qubit - no dissipation
-
-Eh = 27211.  # Eh = 27211 meV
-Th = 2.42e-5 # Th = 2.42 x 10^-5 ps
-
-J = .5/Eh       # (meV)
-dt = .1/Th      # (ps)
-n_steps = 200
-
-H = np.array([
-    [1,  0,  0, 0],
-    [0, -1,  2, 0],
-    [0,  2, -1, 0],
-    [0,  0,  0, 1]
-], dtype=complex)*J/4
-
-psi0 = np.array([0, 1, 0, 0], dtype=complex)
-psi0 /= np.linalg.norm(psi0)
-psi0 = torch.tensor(psi0, dtype=torch.complex64)
-rho0 = torch.outer(psi0, psi0.conj()).unsqueeze(0)
-
-solver_2 = Lindblad_solver(H, L_ops=[], gammas=[], dt=dt)
-[times_2, rhos_2]  = solver_2.run_simulation(rho0, n_steps=n_steps)
-
-
-# Plotting
-
-rhos_np = np.array(rhos_2)  # shape: (n_steps+1, 4, 4) or (n_steps+1, 1, 4, 4)
-
-# Squeeze batch dim if present
-if rhos_np.ndim == 4:
-    rhos_np = rhos_np.squeeze(1)
-
-pop_00 = rhos_np[:, 0, 0].real
-pop_01 = rhos_np[:, 1, 1].real
-pop_10 = rhos_np[:, 2, 2].real
-pop_11 = rhos_np[:, 3, 3].real
-
-# Plot
-fig, ax = plt.subplots(figsize=(9, 5))
-
-ax.plot(times_2*Th, pop_00, label=r'$|00\rangle$')
-ax.plot(times_2*Th, pop_01, label=r'$|01\rangle$')
-ax.plot(times_2*Th, pop_10, label=r'$|10\rangle$')
-ax.plot(times_2*Th, pop_11, label=r'$|11\rangle$')
-
-ax.set_xlabel('Time (ps)')
-ax.set_ylabel('Population')
-ax.set_title('Two-qubit populations (no dissipation)')
-ax.legend()
-ax.set_ylim(-0.05, 1.05)
-ax.grid(True)
-
-plt.tight_layout()
-plt.show()
-'''
 
 # 2 qubit - dissipation
 
-Eh = 27211.  # Eh = 27211 meV
-Th = 2.42e-5 # Th = 2.42 x 10^-5 ps
-
 J = .5/Eh       # (meV)
-#dt = .1/Th      # (ps)
-dt = .02/Th      # (ps)
+dt = .1/Th      # (ps)
+#dt = .02/Th      # (ps)
 n_steps = 200
 
 H = np.array([
@@ -235,24 +149,17 @@ H = np.array([
     [0,  2, -1, 0],
     [0,  0,  0, 1]
 ], dtype=complex)*J/4
-
-
 I2 = np.eye(2, dtype=complex)
-
 L1 = np.array([[0, 1],
                [0, 0]], dtype=complex)
-
 L2 = np.array([[1,  0],
                [0, -1]], dtype=complex)
-
 L1 = np.kron(I2, L1)
 L2 = np.kron(L2, I2)
-
 L = [L1, L2]
 
 gamma_relax = 0.05 * J   # amplitude damping  (T1-type, relaxation to ground state)
 gamma_deph  = 0.1 * J   # dephasing          (T2-type, pure dephasing)
-
 gammas = [gamma_relax, gamma_deph]
 
 psi0 = np.array([0, 1, 0, 0], dtype=complex)
@@ -262,9 +169,9 @@ rho0 = torch.outer(psi0, psi0.conj()).unsqueeze(0)
 
 solver_3 = Lindblad_solver(H, L_ops=L, gammas=gammas, dt=dt)
 [times_3, rhos_3]  = solver_3.run_simulation(rho0, n_steps=n_steps)
+times_3 *= Th  # convert to ps
 
 # Plotting
-
 rhos_np = np.array(rhos_3)  # shape: (n_steps+1, 4, 4) or (n_steps+1, 1, 4, 4)
 
 # Squeeze batch dim if present
@@ -276,27 +183,8 @@ pop_01 = rhos_np[:, 1, 1].real
 pop_10 = rhos_np[:, 2, 2].real
 pop_11 = rhos_np[:, 3, 3].real
 
-'''
-# Plot
-fig, ax = plt.subplots(figsize=(9, 5))
 
-ax.plot(times_3*Th, pop_00, label=r'$|00\rangle$')
-ax.plot(times_3*Th, pop_01, label=r'$|01\rangle$')
-ax.plot(times_3*Th, pop_10, label=r'$|10\rangle$')
-ax.plot(times_3*Th, pop_11, label=r'$|11\rangle$')
-
-ax.set_xlabel('Time (ps)')
-ax.set_ylabel('Population')
-ax.set_title('Two-qubit populations (with dissipation)')
-ax.legend()
-ax.set_ylim(-0.05, 1.05)
-ax.grid(True)
-
-plt.tight_layout()
-plt.show()
-'''
-
-# define NN estimator
+# define NN estimators
 def build_mlp(layer_sizes=[1,256,128,64,32,16], regularization=None, activation='tanh', output='linear', dropout_rate=0.2):
 
     layers = []
@@ -362,28 +250,12 @@ class MLP_head(nn.Module):
             *[ResBlock(width, nn.ReLU) for _ in range(depth)],
             nn.Linear(width, 2)
         ) 
-        self.blocks0 = nn.Sequential(
-            nn.Linear(1, width),
-            nn.ReLU(),
-            nn.Linear(width, width),
-            nn.ReLU(),           
-            nn.Linear(width, 2)
-        ) 
 
     def forward(self, x):
-        x = self.blocks0(x)
+        x = self.blocks(x)
         return x[..., 0].to(torch.cfloat) + 1j * x[..., 1]
 
 
-class MLP_PINN_single(nn.Module):
-    def __init__(self, width=8, depth=4):
-        super().__init__()
-        self.mlp = MLP_head(width, depth)
-
-    def forward(self, x):
-        return self.mlp(x).T.reshape(-1, 4, 4)
-    
-    
 class MLP_PINN(nn.Module):
     def __init__(self, width=8, depth=4):
         super().__init__()
@@ -393,7 +265,7 @@ class MLP_PINN(nn.Module):
         ])
 
     def forward(self, x):
-        return torch.cat([mlp(x) for mlp in self.mlps]).T.reshape(-1, 4, 4)
+        return torch.stack([mlp(x) for mlp in self.mlps]).T.reshape(-1, 4, 4)
 
 
 class LindbladPINN(nn.Module):
@@ -405,14 +277,11 @@ class LindbladPINN(nn.Module):
     - 4 real diagonal entries of L
     - 6 complex lower-triangular entries = 12 real numbers
     """
-    def __init__(self, width=256, depth=6, n_freqs=8):
+    def __init__(self, width=256, depth=6):
         super().__init__()
 
-        self.features = FourierFeatures(in_dim=1, n_freqs=n_freqs)
-        in_dim = 1 + 2 * n_freqs
-
         self.input = nn.Sequential(
-            nn.Linear(in_dim, width),
+            nn.Linear(1, width),
             nn.SiLU()
         )
 
@@ -430,15 +299,6 @@ class LindbladPINN(nn.Module):
                 nn.init.xavier_uniform_(m.weight)
                 nn.init.zeros_(m.bias)
 
-    def forward(self, t):
-        x = self.features(t)
-        x = self.input(x)
-        x = self.blocks(x)
-        params = self.output(x)
-
-        return self.params_to_rho(params)
-        #return torch.reshape(params, (-1, 4, 4)).to(torch.cfloat)
-
     def params_to_rho(self, p):
         batch = p.shape[0]
         L = torch.zeros(batch, 4, 4, dtype=torch.cfloat, device=p.device)
@@ -448,7 +308,7 @@ class LindbladPINN(nn.Module):
         for i in range(4):
             L[:, i, i] = diag[:, i].to(torch.cfloat)
 
-        # Complex lower-triangular entries
+        # Complex lower-triangular entries (L in Cholesky decomposition)
         idx = 4
         for i in range(1, 4):
             for j in range(i):
@@ -462,6 +322,13 @@ class LindbladPINN(nn.Module):
         rho = rho / tr[:, None, None]
 
         return rho
+
+    def forward(self, t):
+        x = self.input(t)
+        x = self.blocks(x)
+        params = self.output(x)
+        return self.params_to_rho(params)
+        #return torch.reshape(params, (-1, 4, 4)).to(torch.cfloat)
 
 
 class NN_solver:
@@ -522,35 +389,24 @@ class NN_solver:
     #   drhodt = (rho1-rho)/self.dt
     #   return self.Rho_diff(self.solver.lindblad_rhs(rho), drhodt)
         rho = self.predictor(t)
-        rho1 = self.predictor(t + self.dt)
-        drhodt = (rho1 - rho) / self.dt
-        return self.Rho_diff(self.solver.lindblad_rhs(rho), drhodt)
-    
-    '''
-    def grad(self, outputs, inputs):
-        """Computes the partial derivative of
-        an output with respect to an input."""
-        return torch.autograd.grad(
-            outputs,
-            inputs,
-            grad_outputs=torch.ones_like(outputs),
-            create_graph=True
-        )
-    '''
-
-    def make_predictions(self, t):
-        t = torch.from_numpy(t).to(torch.float32).view(-1,1).to(self.device)
-        pred = self.decode_rho(self.predictor(t)).cpu().detach().numpy()
-        return pred
+        rho1 = self.predictor(t + self.dt*Th)
+        
+        dt = self.dt
+        L  = self.solver.lindblad_rhs
+        k1 = L(rho)
+        k2 = L(rho + 0.5 * dt * k1)
+        k3 = L(rho + 0.5 * dt * k2)
+        k4 = L(rho +       dt * k3)
+        rho_next = rho + (dt / 6.0) * (k1 + 2*k2 + 2*k3 + k4)
+        
+        return self.Rho_diff(rho_next, rho1)
 
     def Rho_diff(self, rho1, rho2):
-        rho_diff = rho1 - rho2
-        #return torch.sum(torch.abs(rho_diff), dim=(1,2))
-        return torch.mean(rho_diff.real**2 + rho_diff.imag**2)
+        return F.mse_loss(rho1.real, rho2.real) + F.mse_loss(rho1.imag, rho2.imag)
 
 class Training:
 
-    def __init__(self, nn_solver, no_epochs, lr, physics_loss=False, weight_physics=1000.):
+    def __init__(self, nn_solver, no_epochs, lr, physics_loss=False, weight_physics=1.):
         self.nn_solver = nn_solver
         self.no_epochs = no_epochs
         self.physics_loss = physics_loss
@@ -558,18 +414,17 @@ class Training:
         self.optimizer = torch.optim.Adam(self.nn_solver.predictor.parameters(), lr=lr)
 
     def training_loop(self):
-
+        self.nn_solver.predictor.train()
+        
         store_loss = []
         for epoch in range(self.no_epochs):
-            self.nn_solver.predictor.train()
             self.optimizer.zero_grad()
-            
             #out_pred = self.nn_solver.predictor(self.nn_solver.data_points)
             #rho_pred = self.nn_solver.decode_rho(out_pred)
             rho_pred = self.nn_solver.predictor(self.nn_solver.data_points)
             rho_data = self.nn_solver.data_values
             physicsL = self.nn_solver.f_nn(self.nn_solver.collocation_points)
-            dataL = self.nn_solver.Rho_diff(rho_pred, rho_data[:,1,1])
+            dataL = self.nn_solver.Rho_diff(rho_pred, rho_data)
             loss = dataL*1.  #self.nn_solver.collocation_points.shape[0]
             if self.physics_loss:
                 loss += physicsL*(self.weight_physics)**2
@@ -587,8 +442,8 @@ class Training:
         plt.savefig('pinn_training.png')
 
 # now define PINN solver
-#data_indices = np.array([0,10,50,100,150])
-data_indices = np.arange(0, 201, 2)
+#data_indices = np.array([0,5,10,15,20])
+data_indices = np.arange(0, 51, 5)
 data_times = times_3[data_indices]
 data_values = rhos_3[data_indices]
 no_collocation_points = 1000
@@ -600,13 +455,14 @@ collocation_points_times = np.sort(np.random.uniform(np.min(times_3), np.max(tim
 #                                data=[data_times, data_values],
 #                                collocation_points=collocation_points_times)
 
-solver_nn = NN_solver(predictor=MLP_PINN_single(),
+#solver_nn = NN_solver(predictor=MLP_PINN(width=64, depth=3),
+solver_nn = NN_solver(predictor=LindbladPINN(),
                                 solver=solver_3,
                                 data=[data_times, data_values],
                                 collocation_points=collocation_points_times)
 
 # train NN predictor
-train_nn = Training(solver_nn, no_epochs=10000, lr=2.e-4, physics_loss=False, weight_physics=100000.)
+train_nn = Training(solver_nn, no_epochs=10000, lr=1.e-4, physics_loss=True, weight_physics=1.)
     
 print("data_times dtype:", data_times.dtype)
 print("data_times shape:", data_times.shape)
@@ -619,23 +475,22 @@ print("dt", solver_nn.solver.dt*Th)
 train_nn.training_loop()
 
 # TEST:
-#rho_nn = solver_nn.decode_rho(solver_nn.predictor(torch.from_numpy(times_3).to(torch.float32).view(-1,1).to(solver_nn.device))).real.detach().cpu().numpy()
 rho_nn = solver_nn.predictor(torch.from_numpy(times_3).to(torch.float32).view(-1,1).to(solver_nn.device)).real.detach().cpu().numpy()
 print(rho_nn.shape)
 
 # Plot
 fig, ax = plt.subplots(figsize=(9, 5))
 
-# ax.plot(times_3*Th, pop_00, color='C0', label=r'$|00\rangle$')
-# ax.plot(times_3*Th, rho_nn[:,0,0], '--', color='C0', label=r'PINN: $|00\rangle$')
-ax.plot(times_3*Th, pop_01, color='C1', label=r'$|01\rangle$')
-ax.plot(times_3*Th, rho_nn, '--', color='C1', label=r'PINN: $|01\rangle$')
-# ax.plot(times_3*Th, pop_10, color='C2', label=r'$|10\rangle$')
-# ax.plot(times_3*Th, rho_nn[:,2,2], '--', color='C2', label=r'PINN: $|10\rangle$')
-# ax.plot(times_3*Th, pop_11, color='C3', label=r'$|11\rangle$')
-# ax.plot(times_3*Th, rho_nn[:,3,3], '--', color='C3', label=r'PINN: $|11\rangle$')
-ax.scatter(data_times*Th, np.ones_like(data_times)*.02, marker='o', color='black', label='data points')
-ax.scatter(collocation_points_times*Th, np.ones_like(collocation_points_times)*-.02, marker='x', color='magenta', label='collocation points')
+ax.plot(times_3, pop_00, color='C0', label=r'$|00\rangle$')
+ax.plot(times_3, rho_nn[:,0,0], '--', color='C0', label=r'PINN: $|00\rangle$')
+ax.plot(times_3, pop_01, color='C1', label=r'$|01\rangle$')
+ax.plot(times_3, rho_nn[:,1,1], '--', color='C1', label=r'PINN: $|01\rangle$')
+ax.plot(times_3, pop_10, color='C2', label=r'$|10\rangle$')
+ax.plot(times_3, rho_nn[:,2,2], '--', color='C2', label=r'PINN: $|10\rangle$')
+ax.plot(times_3, pop_11, color='C3', label=r'$|11\rangle$')
+ax.plot(times_3, rho_nn[:,3,3], '--', color='C3', label=r'PINN: $|11\rangle$')
+ax.scatter(data_times, np.ones_like(data_times)*.02, marker='o', color='black', label='data points')
+ax.scatter(collocation_points_times, np.ones_like(collocation_points_times)*-.02, marker='x', color='magenta', label='collocation points')
 ax.set_xlabel('Time (ps)')
 ax.set_ylabel('Population')
 ax.set_title('Two-qubit populations (with dissipation) numerics vs. PINN')
@@ -645,27 +500,3 @@ ax.grid(True)
 
 plt.tight_layout()
 fig.savefig('pinn_test.png')
-
-# def matrix_to_rho16(rho_np):
-#     """
-#     Convert a (T, 4, 4) complex numpy trajectory to (T, 16) real array using the same parameterisation as rho_to_matrix.
-#     Useful for computing the data loss against RK4 output.
-#     """
-#     T = rho_np.shape[0]
-#     out = np.zeros((T, 16), dtype=np.float32)
-#     out[:, 0]  = rho_np[:, 0, 0].real
-#     out[:, 7]  = rho_np[:, 1, 1].real
-#     out[:, 12] = rho_np[:, 2, 2].real
-#     out[:, 15] = rho_np[:, 3, 3].real
-#     pairs = [
-#         (0, 1, 1,  2),
-#         (0, 2, 3,  4),
-#         (0, 3, 5,  6),
-#         (1, 2, 8,  9),
-#         (1, 3, 10, 11),
-#         (2, 3, 13, 14),
-#     ]
-#     for (i, j, ri, ii) in pairs:
-#         out[:, ri] = rho_np[:, i, j].real
-#         out[:, ii] = rho_np[:, i, j].imag
-#     return out
