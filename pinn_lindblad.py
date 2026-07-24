@@ -444,6 +444,7 @@ class Training:
 # now define PINN solver
 #data_indices = np.array([0,5,10,15,20])
 data_indices = np.arange(0, 51, 5)
+#data_indices = np.append(data_indices, [80,120,160,200])
 data_times = times_3[data_indices]
 data_values = rhos_3[data_indices]
 no_collocation_points = 1000
@@ -482,21 +483,24 @@ print(rho_nn.shape)
 fig, ax = plt.subplots(figsize=(9, 5))
 
 ax.plot(times_3, pop_00, color='C0', label=r'$|00\rangle$')
-ax.plot(times_3, rho_nn[:,0,0], '--', color='C0', label=r'PINN: $|00\rangle$')
+ax.plot(times_3, rho_nn[:,0,0], '--', color='C0', label=r'LINN: $|00\rangle$')
 ax.plot(times_3, pop_01, color='C1', label=r'$|01\rangle$')
-ax.plot(times_3, rho_nn[:,1,1], '--', color='C1', label=r'PINN: $|01\rangle$')
+ax.plot(times_3, rho_nn[:,1,1], '--', color='C1', label=r'LINN: $|01\rangle$')
 ax.plot(times_3, pop_10, color='C2', label=r'$|10\rangle$')
-ax.plot(times_3, rho_nn[:,2,2], '--', color='C2', label=r'PINN: $|10\rangle$')
+ax.plot(times_3, rho_nn[:,2,2], '--', color='C2', label=r'LINN: $|10\rangle$')
 ax.plot(times_3, pop_11, color='C3', label=r'$|11\rangle$')
-ax.plot(times_3, rho_nn[:,3,3], '--', color='C3', label=r'PINN: $|11\rangle$')
+ax.plot(times_3, rho_nn[:,3,3], '--', color='C3', label=r'LINN: $|11\rangle$')
 ax.scatter(data_times, np.ones_like(data_times)*.02, marker='o', color='black', label='data points')
 ax.scatter(collocation_points_times, np.ones_like(collocation_points_times)*-.02, marker='x', color='magenta', label='collocation points')
-ax.set_xlabel('Time (ps)')
-ax.set_ylabel('Population')
-ax.set_title('Two-qubit populations (with dissipation) numerics vs. PINN')
+ax.set_xlabel('time (ps)')
+ax.set_ylabel('populations')
+ax.set_title(r'Two-qubit $\rho$ populations: numerics vs. LINN')
 ax.legend()
 ax.set_ylim(-0.05, 1.05)
 ax.grid(True)
+
+np.save('pinn_test.npy', rho_nn)
+np.save('pinn_times.npy', times_3)
 
 plt.tight_layout()
 fig.savefig('pinn_test.png')

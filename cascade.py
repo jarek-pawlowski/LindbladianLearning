@@ -117,7 +117,7 @@ states_t = prop_to_t_states()
 # plot biexciton population
 import matplotlib.pyplot as plt
 fig, ax = plt.subplots()
-ax.plot(tlist*Th, Omega(tlist)/Th, label='$\Omega(t)$')
+ax.plot(tlist*Th, Omega(tlist)/Th, label='$\\Omega(t)$')
 ax.plot(tlist*Th, [s_t[0,0].real for s_t in states_t], label='$\\rho_{GG}(t)$')
 ax.plot(tlist*Th, [s_t[3,3].real for s_t in states_t], label='$\\rho_{BB}(t)$')
 ax.plot(tlist*Th, [np.abs(s_t[3,0]) for s_t in states_t], label='$\\rho_{BG}(t)$')
@@ -155,7 +155,7 @@ for a,(j,k) in enumerate(basis_2p):
             # (matches Eq. A11 structure)
             vals = [ (sig_k.dag()*sig_m*st).tr() for st in sol_tau.states ]
             acc += np.sum(vals) * dtau
-            breakpoint()
+
         G2_int[a,b] = acc * dt
 
 # Normalize to get rho_2p (Eq. A10a)
