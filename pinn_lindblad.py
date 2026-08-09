@@ -46,8 +46,8 @@ def FixRho(rho):
 
     # 4. Reconstruct:  V @ diag(λ) @ V†
     rho_fixed = eigvecs @ torch.diag_embed(eigvals.to(eigvecs.dtype)) @ eigvecs.conj().transpose(1, 2)
+    
     # 5. Normalize trace
-
     trace = rho_fixed.diagonal(dim1=1, dim2=2).sum(dim=1)
     rho_fixed = rho_fixed / trace[:, None, None]
 

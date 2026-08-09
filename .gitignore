@@ -1,3 +1,7 @@
 old/
 pinn_plot.py
 *.npy
+*.pt
+results
+results_dl
+data/*
